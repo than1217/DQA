@@ -1,0 +1,448 @@
+﻿DRN:4PS-NPMO-05-2026-000507-S  
+
+
+MEMORANDUM 
+
+
+FOR
+	:
+	ATTY. MARY ROSE G. OQUINDO-PASIBI
+Director III and Concurrent Officer-in-Charge National Program Manager
+Pantawid Pamilyang Pilipino Program
+	FROM
+	:
+	DIRECTOR III AND DEPUTY PROGRAM MANAGER FOR 4PS-NPMO MINDANAO AFFAIRS AND DATA MANAGEMENT SYSTEMS
+	SUBJECT
+	:
+	CRITERIA OF HOUSEHOLD AND MEMBER RECORDS FOR DATA MIGRATION FROM PPISV3 TO 4PS DIGITAL PLATFORM
+	DATE
+	:
+	8 JUNE 2026
+	Pursuant to the memorandum on PPIS System Freeze and Data Migration dated 14 May 2026, household and member data migration is scheduled from May 25 to June 5, 2026. Attached is the criteria that define the records to be migrated to the 4Ps Digital Platform.
+For the approval and/or further guidance of the National Program Manager. 
+Thank you,
+
+
+AUGUSTUS LITO M. NARAG
+
+
+
+
+MJSDJ/BPSS/1010
+
+
+CF:         JOHANNES PAULUS B. ACUÑA
+Office of the Assistant Secretary for Information and 
+Communications Technology and Chief Information Office
+
+
+
+
+________________
+
+
+CRITERIA OF HOUSEHOLD AND MEMBER RECORDS FOR DATA MIGRATION FROM PPISV3 TO 4PS DIGITAL PLATFORM
+
+
+1. HOUSEHOLD Level
+	No.
+	Criteria
+	Migration Details
+	1
+	Exclude Archived records
+	//Select non-archived records for data migration
+
+
+dp_ppis_v3.tbl_household.archived = 0
+
+
+// Member-level
+dp_ppis_v3.tbl_person.archived = 0
+	2
+	Exclude records tagged as duplicates
+[a]	
+// select non-duplicate members for data migration
+
+
+dp_ppis_v3.tbl_hh_roster.roster_status_id not in 5
+	3
+	Include records with the following household Client Status:
+If not, Households with the following Client Status are to be migrated to 4Ps-DP:
+* 1 - Active
+* 2 - Delisted by Region
+* 3 - Graduated Due to Improved Level of Well-Being
+* 5 - GRS delisted due to Misbehavior
+* 7 - Delisted due to non-compliance
+* 9 - Not Registered
+* 10 - GRS delisted due to Disqualification
+* 11 - Moved to Non-PP Area through BUS type 3
+* 12 - Moved out of the Area Without Notice
+* 13 - Validated Not Poor due to Change of Address
+* 14 - No Eligible (0-18 y/o) for CVS Monitoring (Certified by RPMO)
+* 15 - No Eligible member of HH for CVS monitoring
+* 16 - Did not Complete Registration Process
+* 17 - GRS (Not Eligible - Regular Income)
+* 18 - Delisted due to Non-Registration
+* 19 - Grants Temporarily On-Hold
+* 20 - Failed in ECR-2 (System Generated)
+* 21 - RPMO Approved Household for NPMO Processing
+* 22 - Unlocated Households
+* 23 - Migrated to PPIS (BAPORS only)
+* 24 - GRS: Suspended grants due to misbehavior of HH
+* 25 - Suspended due to non-compliance
+* 26 - Deferred Exit due to NAC Resolution No. 2 s. 2020
+* 28 - Purple Tagged Households
+* 29 - Delisted due to Aging Inactive Status in the Program
+* 30 - L3 for Validation
+* 31 - Validated Non-Poor Households
+* 32 - 4Ps HHs with L3 concerns while waiting for the matching result
+* 33 - Non-poor without SWDI assessment
+* 34 - Delisted Due to Non Compliance to Program Documentary/Administrative
+
+
+Households with Client Status excluded in the data migration:
+* 4 - Shady
+* 8 - Waived
+	//Select records with client status: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 34
+
+
+dp_ppis_v3.tbl_beneficiary.client_status_id in (1,2,3,5,6,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34)
+	4
+	Migrate All Sets except for 14D and 14E[b]
+	/* 
+JOINS were used to make sure  orphan records are excluded
+*/
+SELECT 
+a.*
+FROM tbl_household a
+INNER JOIN tbl_hh_roster b ON a.household_id = b.household_id
+INNER JOIN tbl_person c ON b.person_id = c.person_id
+INNER JOIN tbl_beneficiary d ON a.household_id = d.household_id
+INNER JOIN tbl_grantee e ON d.beneficiary_id = e.beneficiary_id
+LEFT JOIN tbl_family_assoc f ON b.hh_roster_id = f.hh_roster_id
+WHERE
+/* 
+Include all sets except sets 14D and 14E 
+*/
+a.set_grp_id NOT IN 
+(
+77, /* Set 14D */
+79 /* Set 14E */
+);
+	5
+	Include households with overpayment records to be migrated.
+	#for active households
+SELECT
+*
+FROM
+tbl_household a
+INNER JOIN tbl_payroll_adjustment_balance b on a.listahanan_id = b.hh_id;
+
+
+
+
+#for inactive households
+SELECT
+*
+FROM
+tbl_household a
+INNER JOIN tbl_payroll_collection_ar_generation b on a.listahanan_id = b.hh_id
+	6
+	Include households with a history of Retropayment for migration.
+	#for computed to approved by finance
+SELECT
+*
+FROM
+tbl_household a
+INNER JOIN tbl_retropay_history b on a.listahanan_id = b.hh_id
+WHERE
+b.payment_status in (2,3,4)
+	7
+	Include households with a history of Grievances for migration.
+	Same with Item No. 3
+	8
+	Include households with a history of SWDI for migration.
+	#10.255.9.104 pppp
+
+
+SELECT DISTINCT TRIM(hh_id) AS household_id
+FROM tbl_swdi_score_yearly
+WHERE hh_id IS NOT NULL
+AND TRIM(hh_id) <> ''; 
+	2. MEMBER Level
+	No.
+	Criteria
+	Migration Details
+	1
+	Exclude Archived records
+	//Select non-archived records for data migration
+
+
+dp_ppis_v3.tbl_person.archived = 0
+	2
+	Current Member Status:
+* 1 - Active
+* 2 - Deceased
+* 3 - Moved Out
+* 4 - Delisted (Education)
+* 6 - Wrong Entry
+* 7 - Missing
+* 8 - New 15-18 y/o HS Children
+* 9 - 0 values in ppisv2
+* 10 - Purple Tagged Member
+* 11 - Interhousehold Transferred Member
+
+
+Statistics on the database
+MS1 - 36763293
+MS2 - 616939
+MS3 - 3791945
+MS4 - 80
+MS5 - 78152
+MS6 - 81624
+MS7 - 816
+MS8 - 0
+MS9 - 170
+MS10 - 27
+MS11 -14136
+	Member status for inclusion relative to the Household Status (Client Status), if Active HHs shall proceed to migration for inclusion in the Active Roster Status. Including archived records.
+
+/*SELECTING ACTIVE MEMBERS*/
+SELECT FROM tbl_household a JOIN tbl_hh_roster b ON a.household_id = b.household_id WHERE b.roster_status_id IN (1,2,3,...);
+	3
+	Exclude orphan records in the tbl_person with no association in tbl_hh_roster (tbl_hh_roster.person_id)
+	/*
+ All records with a NULL value in the tbl_hh_roster.person_id are excluded from the result.
+*/
+
+
+SELECT
+tbl_person.*
+FROM
+tbl_person
+LEFT JOIN tbl_hh_roster ON tbl_person.person_id = tbl_hh_roster.person_id
+WHERE
+tbl_hh_roster.person_id IS NOT NULL;
+	4
+	Removal of leading, trailing, and multiple spaces between names (first_name, middle_name, last_name, school_name, health_center_name, etc.)
+example:
+Peter  John to Peter John,
+Maria     Isabel to Maria Isabel,
+Aba   Nakaka    Basa to Aba Nakaka Basa
+
+
+Applicable to all DB tables
+	/*
+TRIM - removes leading and trailing spaces.
+REGEXP_REPLACE(table.field, '\\s+', ' ') - removes consecutive spaces in between string values and maintains 1 space (‘ ‘)
+*/
+TRIM(REGEXP_REPLACE(table.field, '\\s+', ' '))
+	5
+	Removal of consecutive periods/dots (first_name, middle_name, last_name, school_name, health_center_name, etc.)
+example:
+Ma.. to Ma. 
+
+
+Applicable to all DB tables
+	/*
+REGEXP_REPLACE(table.field, '\\.+', '.')
+*/
+REGEXP_REPLACE('Ma.. Ann', '\\.+', '.')
+	6
+	Removal of consecutive dashes (first_name, middle_name, last_name, school_name, health_center_name, etc.)
+example:
+— to -,
+Mary—Ann to Mary-Ann
+
+
+Applicable to all DB tables
+	/*
+REGEXP_REPLACE(table.field, '\\-+', '-')
+*/
+REGEXP_REPLACE('Mary–Ann', '\\-+', '-')
+	7
+	Transform PPIS string values’ case into the Digital Platform’s defined case
+	Preference:
+UPPER(); e.g. MARIE JANE,
+or LOWER(); e.g. marie jane,
+or PROPER(); e.g. Marie Jane
+
+
+Use PROPER();
+[c][d]	
+8
+	Identify and Tag string with invalid characters defined per string datatype columns for correction in operation (Beneficiary Update System)
+Breakdown of this specific Whitelist:
+* A-Za-z0-9: All alphanumeric English characters (letters and numbers).
+* Ññ: Specifically allows uppercase and lowercase N-with-tilde.
+* \s: Allows spaces.
+* ': Allows apostrophes.
+* \-: Allows dashes/hyphens.
+* \.: Allows periods.
+	/* 
+Identification using whitelists of valid characters in a string datatype column
+*/
+SELECT a.person_id, a.first_name
+FROM cbms_4ps_roster_4562438 a
+WHERE a.first_name REGEXP '[^A-Za-z0-9Ññ\\s\'\\-\\.]'
+limit 1;
+
+
+Identified:
+person_id<->first_name
+010-P030676977088-01<->EDILNI?O
+
+
+/*
+Implementation Option: 
+Tagging using Trigger AFTER INSERT upon migration and stored in a column ‘remarks’ or another table’s column.
+*/[e][f]
+	9
+	Birthday (in prescribed database format)
+	YYYY-MM-DD
+	10
+	Empty String in non-nullable columns
+
+
+Example:
+Firstname with “ “ or “” values.
+	/*
+For validation in the field to get the value
+*/
+
+
+For Identification:
+SELECT column FROM table WHERE CHAR_LENGTH(TRIM(column)) = 0;
+
+
+To Remove:
+UPDATE TABLE tbl_name
+SET column = NULL
+WHERE
+CHAR_LENGTH(TRIM(column)) = 0;
+
+
+Application:
+Set values to NULL if Column contains only space(s).
+
+
+	11
+	Criteria for Table Grantee:
+* Account numbers containing an enter key value are being detected as additional characters, resulting in incorrect counts.
+* Account numbers must contain numeric values only.
+	Migration Details:
+* For tbl_grantee.account_no, account numbers with leading or trailing enter values/spaces should be cleaned by removing these unnecessary characters.
+* Validate all entries to ensure that account numbers contain only numeric characters (0–9) with a maximum length of 19 digits. Any non-numeric characters should be identified and corrected before migration.
+	12
+	tbl_person data quality check
+	Refer to the attached DQA Report
+	
+
+Prepared by:
+
+
+
+
+MARY JEYKLE S. DE JOYA
+Information Technology Officer II 
+and Section Head, Business Process Solution Section
+	Concurred by:
+	
+
+
+
+ARNOLD N. DELA ROSA
+Project Development Officer V 
+and Division Head, Beneficiary Compliance Management Division
+	
+
+
+
+MELLANIE C. YUBIA
+Project Development Officer V 
+and Division Head, Beneficiary Data Management Division
+	
+
+
+
+
+
+CEPRIAN OLIVER M. AGBON
+Project Development Officer V 
+and Division Head, Social Case Management Division
+	
+
+
+
+
+
+ATTY. MYCEL C. ARITCHETA
+Project Development Officer V 
+and Division Head, Program Quality Assurance Support Division
+	
+
+
+
+SHIELA MARIE P. VISTA
+Chief Administrative Officer, 
+Grants Division
+	
+
+
+
+MARICEL GRACE L. GOMEZ
+Project Development Officer V 
+and Division Head, Grievance Redress Division
+	
+
+
+
+
+
+Recommended by:
+
+
+
+
+AUGUSTUS LITO M. NARAG
+Director III and Deputy Program Management for 
+4Ps-NPMO Mindanao Affairs and Data Management and Systems
+
+
+
+
+Approved by:
+
+
+
+
+ATTY. MARY ROSE G. OQUINDO-PASIBI
+Director III and Concurrent Officer-in-Charge National Program Manager
+Pantawid Pamilyang Pilipino Program
+	
+
+Page  of 8
+DRN:4PS-NPMO-05-2026-000507-S, CRITERIA OF HOUSEHOLD AND MEMBER RECORDS FOR DATA MIGRATION FROM PPISV3 TO 4PS DIGITAL PLATFORM
+DSWD | CONDITIONAL CASH TRANSFER GROUP | PANTAWID PAMILYANG PILIPINO PROGRAM
+
+
+
+
+
+
+[a]Needs confirmation from BDMD to include HHs tagged as duplicates. @mcyubia@dswd.gov.ph @aiespinoza@dswd.gov.ph
+_Assigned to mcyubia@dswd.gov.ph_
+[b]For confirmation with BDMD @mcyubia@dswd.gov.ph @aiespinoza@dswd.gov.ph
+_Assigned to mcyubia@dswd.gov.ph_
+[c]for confirmation with BDMD @mcyubia@dswd.gov.ph @aiespinoza@dswd.gov.ph
+_Assigned to mcyubia@dswd.gov.ph_
+[d]Concurred.
+[e]to define/identify string with invalid/valid characters for EACH FIELD in the ff Db tables: 
+
+
+tbl_person, tbl_household, tbl_grantee
+
+
+@mcyubia@dswd.gov.ph @aiespinoza@dswd.gov.ph
+_Assigned to mcyubia@dswd.gov.ph_
+[f]Should we include the updates table. e.g. tbl_updates
